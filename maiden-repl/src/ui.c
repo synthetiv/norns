@@ -98,6 +98,12 @@ void ui_loop(void) {
     //	printf("%08x\n", c);
 
     switch(c) {
+    case KEY_PPAGE:
+      page_scroll_up_selected();
+      break;
+    case KEY_NPAGE:
+      page_scroll_down_selected();
+      break;
     case KEY_RESIZE:
       resize();
       break;
@@ -200,9 +206,11 @@ void handle_cmd(char *line)
     }
     switch( page_id() ) {
     case PAGE_MATRON:
+      page_line(PAGE_MATRON, line);
       io_send_line(IO_MATRON, line);
       break;
     case PAGE_CRONE:
+      page_line(PAGE_CRONE, line);
       io_send_line(IO_CRONE, line);
       break;
     }

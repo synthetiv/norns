@@ -57,6 +57,16 @@ void page_append(int i, char *str) {
   page_print(pages[i], str);
 }
 
+void page_scroll_up_selected() {
+  page_scroll_up(page_cur);
+  page_print(page_cur, 'up');
+}
+
+void page_scroll_down_selected() {
+  page_scroll_down(page_cur);
+  page_print(page_cur, 'dn');
+}
+
 void pages_show_key(int k) {
   mvwprintw(win_stat, 0, page_ncols - 9, "%08x",k);
   wnoutrefresh(win_stat);
