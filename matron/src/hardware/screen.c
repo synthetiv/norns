@@ -22,17 +22,18 @@
 // skip this if you don't want every screen module call to perform null checks
 #ifndef CHECK_CR
 #define CHECK_CR      \
-    if (cr == NULL) { \
+    if (cr() == NULL) { \
         return;       \
     }
 #define CHECK_CRR     \
-    if (cr == NULL) { \
+    if (cr() == NULL) { \
         return 0;     \
     }
 #endif
 
 #define NUM_FONTS 67
 #define NUM_OPS 29
+#define NUM_SURFACES 4
 
 static char font_path[NUM_FONTS][32];
 
@@ -72,11 +73,13 @@ static cairo_operator_t ops[NUM_OPS] = {
     CAIRO_OPERATOR_HSL_LUMINOSITY
 };
 
-static cairo_surface_t *surface;
+static int surface_index;
+
+static cairo_surface_t *surfaces[NUM_SURFACES];
 static cairo_surface_t *surfacefb;
 static cairo_surface_t *image;
 
-static cairo_t *cr;
+static cairo_t *crs[NUM_SURFACES];
 static cairo_t *crfb;
 static cairo_font_face_t *ct[NUM_FONTS];
 static FT_Library value;
@@ -91,6 +94,14 @@ typedef struct _cairo_linuxfb_device {
     struct fb_var_screeninfo fb_vinfo;
     struct fb_fix_screeninfo fb_finfo;
 } cairo_linuxfb_device_t;
+
+static inline cairo_surface_t *surface() {
+    return surfaces[surface_index];
+}
+
+static inline cairo_t *cr() {
+    return crs[surface_index];
+}
 
 /* Destroy a cairo surface */
 void cairo_linuxfb_surface_destroy(void *device) {
@@ -177,10 +188,10 @@ void screen_display_png(const char *filename, double x, double y) {
     img_w = cairo_image_surface_get_width(image);
     img_h = cairo_image_surface_get_height(image);
 
-    cairo_set_source_surface(cr, image, x, y);
-    // cairo_paint (cr);
-    cairo_rectangle(cr, x, y, img_w, img_h);
-    cairo_fill(cr);
+    cairo_set_source_surface(cr(), image, x, y);
+    // cairo_paint (cr());
+    cairo_rectangle(cr(), x, y, img_w, img_h);
+    cairo_fill(cr());
     cairo_surface_destroy(image);
 }
 
@@ -191,8 +202,11 @@ void screen_init(void) {
     }
     crfb = cairo_create(surfacefb);
 
-    surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 128, 64);
-    cr = cairo_create(surface);
+    for (int i = 0; i < NUM_SURFACES; i++) {
+        surfaces[i] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 128, 64);
+        crs[i] = cairo_create(surfaces[i]);
+    }
+    surface_index = 0;
 
     status = FT_Init_FreeType(&value);
     if (status != 0) {
@@ -298,28 +312,32 @@ void screen_init(void) {
         }
     }
 
-    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-    cairo_paint(cr);
-    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-
     cairo_font_options_t *font_options = cairo_font_options_create();
     cairo_font_options_set_antialias(font_options, CAIRO_ANTIALIAS_SUBPIXEL);
-    cairo_set_font_options(cr, font_options);
-    cairo_font_options_destroy(font_options);
 
-    // default font
-    cairo_set_font_face(cr, ct[0]);
-    cairo_set_font_size(cr, 8.0);
+    // set defaults for all surfaces
+    for (int i = 0; i < NUM_SURFACES; i++) {
+        cairo_set_operator(crs[i], CAIRO_OPERATOR_CLEAR);
+        cairo_paint(crs[i]);
+        cairo_set_operator(crs[i], CAIRO_OPERATOR_OVER);
+        cairo_set_font_options(crs[i], font_options);
+        cairo_set_font_face(crs[i], ct[0]);
+        cairo_set_font_size(crs[i], 8.0);
+    }
+
+    cairo_font_options_destroy(font_options);
 
     // config buffer
     cairo_set_operator(crfb, CAIRO_OPERATOR_SOURCE);
-    cairo_set_source_surface(crfb, surface, 0, 0);
+    cairo_set_source_surface(crfb, surfaces[0], 0, 0);
 }
 
 void screen_deinit(void) {
     CHECK_CR
-    cairo_destroy(cr);
-    cairo_surface_destroy(surface);
+    for (int i = 0; i < NUM_SURFACES; i++) {
+        cairo_destroy(crs[i]);
+        cairo_surface_destroy(surfaces[i]);
+    }
     cairo_destroy(crfb);
     cairo_surface_destroy(surfacefb);
 }
@@ -331,24 +349,24 @@ void screen_update(void) {
 
 void screen_save(void) {
     CHECK_CR
-    cairo_save(cr);
+    cairo_save(cr());
 }
 
 void screen_restore(void) {
     CHECK_CR
-    cairo_restore(cr);
+    cairo_restore(cr());
 }
 
 void screen_font_face(int i) {
     CHECK_CR
     if ((i >= 0) && (i < NUM_FONTS)) {
-        cairo_set_font_face(cr, ct[i]);
+        cairo_set_font_face(cr(), ct[i]);
     }
 }
 
 void screen_font_size(double z) {
     CHECK_CR
-    cairo_set_font_size(cr, z);
+    cairo_set_font_size(cr(), z);
 }
 
 void screen_aa(int s) {
@@ -356,124 +374,124 @@ void screen_aa(int s) {
 
     cairo_font_options_t *font_options = cairo_font_options_create();
     if (s == 0) {
-        cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+        cairo_set_antialias(cr(), CAIRO_ANTIALIAS_NONE);
         cairo_font_options_set_antialias(font_options, CAIRO_ANTIALIAS_NONE);
     } else {
-        cairo_set_antialias(cr, CAIRO_ANTIALIAS_DEFAULT);
+        cairo_set_antialias(cr(), CAIRO_ANTIALIAS_DEFAULT);
         cairo_font_options_set_antialias(font_options, CAIRO_ANTIALIAS_SUBPIXEL);
     }
-    cairo_set_font_options(cr, font_options);
+    cairo_set_font_options(cr(), font_options);
     cairo_font_options_destroy(font_options);
 }
 
 void screen_level(int z) {
     CHECK_CR
-    cairo_set_source_rgb(cr, c[z], c[z], c[z]);
+    cairo_set_source_rgb(cr(), c[z], c[z], c[z]);
 }
 
 void screen_line_width(double w) {
     CHECK_CR
-    cairo_set_line_width(cr, w);
+    cairo_set_line_width(cr(), w);
 }
 
 void screen_line_cap(const char *style) {
     CHECK_CR
     if (strcmp(style, "round") == 0) {
-        cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+        cairo_set_line_cap(cr(), CAIRO_LINE_CAP_ROUND);
     } else if (strcmp(style, "square") == 0) {
-        cairo_set_line_cap(cr, CAIRO_LINE_CAP_SQUARE);
+        cairo_set_line_cap(cr(), CAIRO_LINE_CAP_SQUARE);
     } else {
-        cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
+        cairo_set_line_cap(cr(), CAIRO_LINE_CAP_BUTT);
     }
 }
 
 void screen_line_join(const char *style) {
     CHECK_CR
     if (strcmp(style, "round") == 0) {
-        cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+        cairo_set_line_join(cr(), CAIRO_LINE_JOIN_ROUND);
     } else if (strcmp(style, "bevel") == 0) {
-        cairo_set_line_join(cr, CAIRO_LINE_JOIN_BEVEL);
+        cairo_set_line_join(cr(), CAIRO_LINE_JOIN_BEVEL);
     } else {
-        cairo_set_line_join(cr, CAIRO_LINE_JOIN_MITER);
+        cairo_set_line_join(cr(), CAIRO_LINE_JOIN_MITER);
     }
 }
 
 void screen_miter_limit(double limit) {
     CHECK_CR
-    cairo_set_miter_limit(cr, limit);
+    cairo_set_miter_limit(cr(), limit);
 }
 
 void screen_move(double x, double y) {
     CHECK_CR
-    cairo_move_to(cr, x, y);
+    cairo_move_to(cr(), x, y);
 }
 
 void screen_line(double x, double y) {
     CHECK_CR
-    cairo_line_to(cr, x, y);
+    cairo_line_to(cr(), x, y);
 }
 
 void screen_line_rel(double x, double y) {
     CHECK_CR
-    cairo_rel_line_to(cr, x, y);
+    cairo_rel_line_to(cr(), x, y);
 }
 
 void screen_move_rel(double x, double y) {
     CHECK_CR
-    cairo_rel_move_to(cr, x, y);
+    cairo_rel_move_to(cr(), x, y);
 }
 
 void screen_curve(double x1, double y1, double x2, double y2, double x3, double y3) {
     CHECK_CR
-    cairo_curve_to(cr, x1, y1, x2, y2, x3, y3);
+    cairo_curve_to(cr(), x1, y1, x2, y2, x3, y3);
 }
 
 void screen_curve_rel(double dx1, double dy1, double dx2, double dy2, double dx3, double dy3) {
     CHECK_CR
-    cairo_rel_curve_to(cr, dx1, dy1, dx2, dy2, dx3, dy3);
+    cairo_rel_curve_to(cr(), dx1, dy1, dx2, dy2, dx3, dy3);
 }
 
 void screen_arc(double x, double y, double r, double a1, double a2) {
     CHECK_CR
-    cairo_arc(cr, x, y, r, a1, a2);
+    cairo_arc(cr(), x, y, r, a1, a2);
 }
 
 void screen_rect(double x, double y, double w, double h) {
     CHECK_CR
-    cairo_rectangle(cr, x, y, w, h);
+    cairo_rectangle(cr(), x, y, w, h);
 }
 
 void screen_close_path(void) {
     CHECK_CR
-    cairo_close_path(cr);
+    cairo_close_path(cr());
 }
 
 void screen_stroke(void) {
     CHECK_CR
-    cairo_stroke(cr);
+    cairo_stroke(cr());
 }
 
 void screen_fill(void) {
     CHECK_CR
-    cairo_fill(cr);
+    cairo_fill(cr());
 }
 
 void screen_text(const char *s) {
     CHECK_CR
-    cairo_show_text(cr, s);
+    cairo_show_text(cr(), s);
 }
 
 void screen_clear(void) {
     CHECK_CR
-    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-    cairo_paint(cr);
-    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+    cairo_set_operator(cr(), CAIRO_OPERATOR_CLEAR);
+    cairo_paint(cr());
+    cairo_set_operator(cr(), CAIRO_OPERATOR_OVER);
 }
 
 double *screen_text_extents(const char *s) {
     CHECK_CRR
     cairo_text_extents_t extents;
-    cairo_text_extents(cr, s, &extents);
+    cairo_text_extents(cr(), s, &extents);
     text_xy[0] = extents.width;
     text_xy[1] = extents.height;
     return text_xy;
@@ -481,7 +499,7 @@ double *screen_text_extents(const char *s) {
 
 extern void screen_export_png(const char *s) {
     CHECK_CR
-    cairo_surface_write_to_png(surface, s);
+    cairo_surface_write_to_png(surface(), s);
 }
 
 char *screen_peek(int x, int y, int *w, int *h) {
@@ -492,8 +510,8 @@ char *screen_peek(int x, int y, int *w, int *h) {
     if (!buf) {
         return NULL;
     }
-    cairo_surface_flush(surface);
-    uint32_t *data = (uint32_t *)cairo_image_surface_get_data(surface);
+    cairo_surface_flush(surface());
+    uint32_t *data = (uint32_t *)cairo_image_surface_get_data(surface());
     if (!data) {
         return NULL;
     }
@@ -512,7 +530,7 @@ void screen_poke(int x, int y, int w, int h, unsigned char *buf) {
     w = (w <= (128 - x)) ? w : (128 - x);
     h = (h <= (64 - y))  ? h : (64 - y);
 
-    uint32_t *data = (uint32_t *)cairo_image_surface_get_data(surface);
+    uint32_t *data = (uint32_t *)cairo_image_surface_get_data(surface());
     if (!data) {
         return;
     }
@@ -526,23 +544,41 @@ void screen_poke(int x, int y, int w, int h, unsigned char *buf) {
             p++;
         }
     }
-    cairo_surface_mark_dirty(surface);
+    cairo_surface_mark_dirty(surface());
 }
 
 void screen_rotate(double r) {
     CHECK_CR
-    cairo_rotate(cr, r);
+    cairo_rotate(cr(), r);
 }
 
 void screen_translate(double x, double y) {
     CHECK_CR
-    cairo_translate(cr, x, y);
+    cairo_translate(cr(), x, y);
 }
 
 void screen_set_operator(int i) {
     CHECK_CR
     if (0 <= i && i <= 28) {
-        cairo_set_operator(cr, ops[i]);
+        cairo_set_operator(cr(), ops[i]);
+    }
+}
+
+void screen_set_surface(int index) {
+    if ((index >= 0) && (index < NUM_SURFACES)) {
+        surface_index = index;
+    }
+}
+
+void screen_copy_surface(int source_index,
+        double source_x, double source_y,
+        double width, double height,
+        double dest_x, double dest_y) {
+    CHECK_CR
+    if ((source_index >= 0) && (source_index < NUM_SURFACES) && (surfaces[source_index] != NULL)) {
+        cairo_set_source_surface(cr(), surfaces[source_index], source_x, source_y);
+        cairo_rectangle(cr(), dest_x, dest_y, width, height);
+        cairo_fill(cr());
     }
 }
 

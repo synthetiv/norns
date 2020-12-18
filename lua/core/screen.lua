@@ -390,4 +390,12 @@ Screen.blend_mode = function(index)
   end
 end
 
+Screen.surface = function(index)
+  _norns.screen_set_surface(index)
+end
+
+Screen.copy_surface = function(source, source_x, source_y, width, height, dest_x, dest_y)
+  _norns.screen_copy_surface(source, source_x, source_y, width, height, dest_x, dest_y)
+end
+
 return Screen
