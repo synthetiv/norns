@@ -84,6 +84,7 @@ static cairo_extend_t extend_modes[NUM_EXTEND_MODES] = {
 static int surface_index;
 
 static cairo_surface_t *surfaces[NUM_SURFACES];
+static int surface_sources[NUM_SURFACES];
 static cairo_surface_t *surfacefb;
 static cairo_surface_t *image;
 
@@ -201,6 +202,8 @@ void screen_display_png(const char *filename, double x, double y) {
     cairo_rectangle(cr(), x, y, img_w, img_h);
     cairo_fill(cr());
     cairo_surface_destroy(image);
+    cairo_set_source_rgb(cr(), 0, 0, 0);
+    surface_sources[surface_index] = -1;
 }
 
 void screen_init(void) {
@@ -336,6 +339,7 @@ void screen_init(void) {
         cairo_set_operator(crs[i], CAIRO_OPERATOR_OVER);
         cairo_set_font_face(crs[i], ct[0]);
         cairo_set_font_size(crs[i], 8.0);
+        surface_sources[i] = -1; // not using another surface as a source
     }
 
     // config buffer
@@ -398,6 +402,7 @@ void screen_aa(int s) {
 void screen_level(int z) {
     CHECK_CR
     cairo_set_source_rgb(cr(), c[z], c[z], c[z]);
+    surface_sources[surface_index] = -1;
 }
 
 void screen_line_width(double w) {
@@ -589,16 +594,29 @@ void screen_resize_surface(double x, double y, int width, int height) {
         fprintf(stderr, "ERROR (screen) surface %d cannot be resized\n", surface_index);
         return;
     }
+    // create new surface and context
     cairo_surface_t *new_surface = cairo_surface_create_similar_image(surface(), CAIRO_FORMAT_ARGB32, width, height);
     cairo_t *new_context = cairo_create(new_surface);
+    // copy contents from old surface
     cairo_set_operator(new_context, CAIRO_OPERATOR_SOURCE);
     cairo_set_source_surface(new_context, surface(), x, y);
     cairo_paint(new_context);
+    // destroy reference to old surface
     cairo_set_operator(new_context, CAIRO_OPERATOR_OVER);
     cairo_set_source_rgb(new_context, 0, 0, 0);
+    surface_sources[surface_index] = -1;
+    // find & replace all other references
+    for (int i = 0; i < NUM_SURFACES; i++) {
+        if (i == surface_index) continue; // skip the current surface, we've already handled that
+        if (surface_sources[i] == surface_index) {
+            // check extend mode and switch sources to the new surface, with same extend mode
+            cairo_pattern_t *old_pattern = cairo_get_source(crs[i]);
+            cairo_set_source_surface(crs[i], new_surface, x, y);
+            cairo_pattern_set_extend(cairo_get_source(crs[i]), cairo_pattern_get_extend(old_pattern));
+        }
+    }
     cairo_destroy(cr());
     cairo_surface_destroy(surface());
-    // TODO! if old surface is being used as a source anywhere else, y'better change that
     if (cairo_surface_get_reference_count(surface()) > 0) {
         fprintf(stderr, "WARNING (screen) old surface %d is still referenced somewhere\n", surface_index);
     }
@@ -611,6 +629,7 @@ void screen_set_source_surface(int source_index, double x, double y, int extend_
     if ((source_index >= 0) && (source_index < NUM_SURFACES) && (surfaces[source_index] != NULL) && (extend_mode >= 0) && (extend_mode < NUM_EXTEND_MODES)) {
         cairo_set_source_surface(cr(), surfaces[source_index], x, y);
         cairo_pattern_set_extend(cairo_get_source(cr()), extend_modes[extend_mode]);
+        surface_sources[surface_index] = source_index;
     }
 }
 
