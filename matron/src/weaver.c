@@ -116,7 +116,7 @@ static int _screen_rotate(lua_State *l);
 static int _screen_translate(lua_State *l);
 static int _screen_set_operator(lua_State *l);
 static int _screen_set_surface(lua_State *l);
-static int _screen_copy_surface(lua_State *l);
+static int _screen_set_source_surface(lua_State *l);
 // i2c
 static int _gain_hp(lua_State *l);
 // osc
@@ -391,7 +391,7 @@ void w_init(void) {
     lua_register_norns("screen_translate", &_screen_translate);
     lua_register_norns("screen_set_operator", &_screen_set_operator);
     lua_register_norns("screen_set_surface", &_screen_set_surface);
-    lua_register_norns("screen_copy_surface", &_screen_copy_surface);
+    lua_register_norns("screen_set_source_surface", &_screen_set_source_surface);
 
     // analog output control
     lua_register_norns("gain_hp", &_gain_hp);
@@ -1006,20 +1006,18 @@ int _screen_set_surface(lua_State *l) {
 }
 
 /***
- * screen: copy_surface
- * @function s_copy_surface
+ * screen: set_source_surface
+ * @function s_set_source_surface
  * @tparam int surface number (1-4)
+ * @tparam number x offset x
+ * @tparam number y offset y
  */
-int _screen_copy_surface(lua_State *l) {
-    lua_check_num_args(7);
+int _screen_set_source_surface(lua_State *l) {
+    lua_check_num_args(3);
     int source_index = luaL_checknumber(l, 1) - 1; // convert from 1-base
-    int source_x = luaL_checknumber(l, 2);
-    int source_y = luaL_checknumber(l, 3);
-    int width = luaL_checknumber(l, 4);
-    int height = luaL_checknumber(l, 5);
-    int dest_x = luaL_checknumber(l, 6);
-    int dest_y = luaL_checknumber(l, 7);
-    screen_copy_surface(source_index, source_x, source_y, width, height, dest_x, dest_y);
+    int x = luaL_checknumber(l, 2);
+    int y = luaL_checknumber(l, 3);
+    screen_set_source_surface(source_index, x, y);
     lua_settop(l, 0);
     return 0;
 }

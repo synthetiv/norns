@@ -570,15 +570,10 @@ void screen_set_surface(int index) {
     }
 }
 
-void screen_copy_surface(int source_index,
-        double source_x, double source_y,
-        double width, double height,
-        double dest_x, double dest_y) {
+void screen_set_source_surface(int source_index, double x, double y) {
     CHECK_CR
     if ((source_index >= 0) && (source_index < NUM_SURFACES) && (surfaces[source_index] != NULL)) {
-        cairo_set_source_surface(cr(), surfaces[source_index], source_x, source_y);
-        cairo_rectangle(cr(), dest_x, dest_y, width, height);
-        cairo_fill(cr());
+        cairo_set_source_surface(cr(), surfaces[source_index], x, y);
     }
 }
 

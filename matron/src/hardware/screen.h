@@ -38,4 +38,4 @@ extern void screen_rotate(double r);
 extern void screen_translate(double x, double y);
 extern void screen_set_operator(int i);
 extern void screen_set_surface(int i);
-extern void screen_copy_surface(int source_index, double source_x, double source_y, double width, double height, double dest_x, double dest_y);
+extern void screen_set_source_surface(int source_index, double x, double y);

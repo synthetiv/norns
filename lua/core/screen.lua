@@ -394,8 +394,8 @@ Screen.surface = function(index)
   _norns.screen_set_surface(index)
 end
 
-Screen.copy_surface = function(source, source_x, source_y, width, height, dest_x, dest_y)
-  _norns.screen_copy_surface(source, source_x, source_y, width, height, dest_x, dest_y)
+Screen.source_surface = function(source, x, y)
+  _norns.screen_set_source_surface(source, x, y)
 end
 
 return Screen
