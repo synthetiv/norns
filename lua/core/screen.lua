@@ -394,8 +394,28 @@ Screen.surface = function(index)
   _norns.screen_set_surface(index)
 end
 
-Screen.source_surface = function(source, x, y)
-  _norns.screen_set_source_surface(source, x, y)
+Screen.resize_surface = function(x, y, width, height)
+  _norns.screen_resize_surface(x, y, width, height)
+end
+
+Screen.EXTEND_MODES = {
+  ['NONE'] = 0,
+  ['DEFAULT'] = 0,
+  ['REPEAT'] = 1,
+  ['REFLECT'] = 2,
+  ['PAD'] = 3,
+}
+
+Screen.source_surface = function(source, x, y, mode)
+  if type(mode) == "string" then
+    local index = Screen.EXTEND_MODES[string.upper(mode)]
+    if index == nil then
+      print(mode..' is not a valid pattern extend mode, use tab.print(screen.EXTEND_MODES) to see available modes and their indexes.')
+    else
+      mode = index
+    end
+  end
+  _norns.screen_set_source_surface(source, x, y, mode)
 end
 
 return Screen

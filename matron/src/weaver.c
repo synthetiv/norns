@@ -116,6 +116,7 @@ static int _screen_rotate(lua_State *l);
 static int _screen_translate(lua_State *l);
 static int _screen_set_operator(lua_State *l);
 static int _screen_set_surface(lua_State *l);
+static int _screen_resize_surface(lua_State *l);
 static int _screen_set_source_surface(lua_State *l);
 // i2c
 static int _gain_hp(lua_State *l);
@@ -391,6 +392,7 @@ void w_init(void) {
     lua_register_norns("screen_translate", &_screen_translate);
     lua_register_norns("screen_set_operator", &_screen_set_operator);
     lua_register_norns("screen_set_surface", &_screen_set_surface);
+    lua_register_norns("screen_resize_surface", &_screen_resize_surface);
     lua_register_norns("screen_set_source_surface", &_screen_set_source_surface);
 
     // analog output control
@@ -1006,6 +1008,24 @@ int _screen_set_surface(lua_State *l) {
 }
 
 /***
+ * screen: resize_surface
+ * @function s_resize_surface
+ * @tparam int surface number (1-4)
+ * @tparam number x offset x
+ * @tparam number y offset y
+ */
+int _screen_resize_surface(lua_State *l) {
+    lua_check_num_args(4);
+    double x = luaL_checknumber(l, 1);
+    double y = luaL_checknumber(l, 2);
+    int width = luaL_checknumber(l, 3);
+    int height = luaL_checknumber(l, 4);
+    screen_resize_surface(x, y, width, height);
+    lua_settop(l, 0);
+    return 0;
+}
+
+/***
  * screen: set_source_surface
  * @function s_set_source_surface
  * @tparam int surface number (1-4)
@@ -1013,11 +1033,12 @@ int _screen_set_surface(lua_State *l) {
  * @tparam number y offset y
  */
 int _screen_set_source_surface(lua_State *l) {
-    lua_check_num_args(3);
+    lua_check_num_args(4);
     int source_index = luaL_checknumber(l, 1) - 1; // convert from 1-base
     int x = luaL_checknumber(l, 2);
     int y = luaL_checknumber(l, 3);
-    screen_set_source_surface(source_index, x, y);
+    int extend_mode = luaL_checknumber(l, 4);
+    screen_set_source_surface(source_index, x, y, extend_mode);
     lua_settop(l, 0);
     return 0;
 }

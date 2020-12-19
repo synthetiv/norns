@@ -38,4 +38,5 @@ extern void screen_rotate(double r);
 extern void screen_translate(double x, double y);
 extern void screen_set_operator(int i);
 extern void screen_set_surface(int i);
-extern void screen_set_source_surface(int source_index, double x, double y);
+extern void screen_resize_surface(double x, double y, int width, int height);
+extern void screen_set_source_surface(int source_index, double x, double y, int extend_mode);

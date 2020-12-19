@@ -33,6 +33,7 @@
 
 #define NUM_FONTS 67
 #define NUM_OPS 29
+#define NUM_EXTEND_MODES 4
 #define NUM_SURFACES 4
 
 static char font_path[NUM_FONTS][32];
@@ -71,6 +72,13 @@ static cairo_operator_t ops[NUM_OPS] = {
     CAIRO_OPERATOR_HSL_SATURATION,
     CAIRO_OPERATOR_HSL_COLOR,
     CAIRO_OPERATOR_HSL_LUMINOSITY
+};
+
+static cairo_extend_t extend_modes[NUM_EXTEND_MODES] = {
+    CAIRO_EXTEND_NONE,
+    CAIRO_EXTEND_REPEAT,
+    CAIRO_EXTEND_REFLECT,
+    CAIRO_EXTEND_PAD
 };
 
 static int surface_index;
@@ -202,11 +210,8 @@ void screen_init(void) {
     }
     crfb = cairo_create(surfacefb);
 
-    for (int i = 0; i < NUM_SURFACES; i++) {
-        surfaces[i] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 128, 64);
-        crs[i] = cairo_create(surfaces[i]);
-    }
-    surface_index = 0;
+    surfaces[0] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 128, 64);
+    crs[0] = cairo_create(surfaces[0]);
 
     status = FT_Init_FreeType(&value);
     if (status != 0) {
@@ -314,18 +319,24 @@ void screen_init(void) {
 
     cairo_font_options_t *font_options = cairo_font_options_create();
     cairo_font_options_set_antialias(font_options, CAIRO_ANTIALIAS_SUBPIXEL);
+    cairo_set_font_options(crs[0], font_options);
+    cairo_font_options_destroy(font_options);
 
-    // set defaults for all surfaces
+    // set up alternate surfaces
+    for (int i = 1; i < NUM_SURFACES; i++) {
+        surfaces[i] = cairo_surface_create_similar_image(surfaces[0], CAIRO_FORMAT_ARGB32, 128, 64);
+        crs[i] = cairo_create(surfaces[i]);
+    }
+    surface_index = 0;
+
+    // clear & set defaults for all surfaces
     for (int i = 0; i < NUM_SURFACES; i++) {
         cairo_set_operator(crs[i], CAIRO_OPERATOR_CLEAR);
         cairo_paint(crs[i]);
         cairo_set_operator(crs[i], CAIRO_OPERATOR_OVER);
-        cairo_set_font_options(crs[i], font_options);
         cairo_set_font_face(crs[i], ct[0]);
         cairo_set_font_size(crs[i], 8.0);
     }
-
-    cairo_font_options_destroy(font_options);
 
     // config buffer
     cairo_set_operator(crfb, CAIRO_OPERATOR_SOURCE);
@@ -497,11 +508,13 @@ double *screen_text_extents(const char *s) {
     return text_xy;
 }
 
+// TODO: only export surface 0?
 extern void screen_export_png(const char *s) {
     CHECK_CR
     cairo_surface_write_to_png(surface(), s);
 }
 
+// TODO: use surface w/h
 char *screen_peek(int x, int y, int *w, int *h) {
     CHECK_CRR
     *w = (*w <= (128 - x)) ? (*w) : (128 - x);
@@ -525,6 +538,7 @@ char *screen_peek(int x, int y, int *w, int *h) {
     return buf;
 }
 
+// TODO: use surface w/h
 void screen_poke(int x, int y, int w, int h, unsigned char *buf) {
     CHECK_CR
     w = (w <= (128 - x)) ? w : (128 - x);
@@ -570,10 +584,31 @@ void screen_set_surface(int index) {
     }
 }
 
-void screen_set_source_surface(int source_index, double x, double y) {
+void screen_resize_surface(double x, double y, int width, int height) {
+    if ((surface_index < 1) || (surface_index >= NUM_SURFACES)) { // no resizing surface #0!
+        fprintf(stderr, "ERROR (screen) surface %d cannot be resized\n", surface_index);
+        return;
+    }
+    cairo_surface_t *new_surface = cairo_surface_create_similar_image(surface(), CAIRO_FORMAT_ARGB32, width, height);
+    cairo_t *new_context = cairo_create(new_surface);
+    cairo_set_operator(new_context, CAIRO_OPERATOR_SOURCE);
+    cairo_set_source_surface(new_context, surface(), x, y);
+    cairo_paint(new_context);
+    cairo_destroy(cr());
+    cairo_surface_destroy(surface());
+    // TODO! if old surface is being used as a source anywhere, y'better change that
+    if (cairo_surface_get_reference_count(surface()) > 0) {
+        fprintf(stderr, "WARNING (screen) old surface %d is still referenced somewhere\n", surface_index);
+    }
+    crs[surface_index] = new_context;
+    surfaces[surface_index] = new_surface;
+}
+
+void screen_set_source_surface(int source_index, double x, double y, int extend_mode) {
     CHECK_CR
-    if ((source_index >= 0) && (source_index < NUM_SURFACES) && (surfaces[source_index] != NULL)) {
+    if ((source_index >= 0) && (source_index < NUM_SURFACES) && (surfaces[source_index] != NULL) && (extend_mode >= 0) && (extend_mode < NUM_EXTEND_MODES)) {
         cairo_set_source_surface(cr(), surfaces[source_index], x, y);
+        cairo_pattern_set_extend(cairo_get_source(cr()), extend_modes[extend_mode]);
     }
 }
 
