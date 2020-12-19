@@ -83,6 +83,8 @@ Script.clear = function()
     crow.input[1].mode("change",2,0.1,"rising")
   end
 
+  screen.surface(1)
+
   -- reset PLAY mode screen settings
   local status = norns.menu.status()
   if status == true then _norns.screen_restore() end
