@@ -594,9 +594,11 @@ void screen_resize_surface(double x, double y, int width, int height) {
     cairo_set_operator(new_context, CAIRO_OPERATOR_SOURCE);
     cairo_set_source_surface(new_context, surface(), x, y);
     cairo_paint(new_context);
+    cairo_set_operator(new_context, CAIRO_OPERATOR_OVER);
+    cairo_set_source_rgb(new_context, 0, 0, 0);
     cairo_destroy(cr());
     cairo_surface_destroy(surface());
-    // TODO! if old surface is being used as a source anywhere, y'better change that
+    // TODO! if old surface is being used as a source anywhere else, y'better change that
     if (cairo_surface_get_reference_count(surface()) > 0) {
         fprintf(stderr, "WARNING (screen) old surface %d is still referenced somewhere\n", surface_index);
     }
